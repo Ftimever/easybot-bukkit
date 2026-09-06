@@ -6,7 +6,7 @@ import com.springwater.easybot.utils.BridgeUtils;
 import com.springwater.easybot.utils.FakePlayerUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 public class PlayerDeathSyncEvents implements Listener {
     
     private final boolean hasModernMessageApi;
+    private final Method damagerBlockStateMethod;
 
     public PlayerDeathSyncEvents(){
         boolean modernMessageApi = false;
@@ -32,6 +33,13 @@ public class PlayerDeathSyncEvents implements Listener {
         } catch (NoSuchMethodException | NoClassDefFoundError ignored) {
         }
         this.hasModernMessageApi = modernMessageApi;
+
+        Method blockStateMethod = null;
+        try {
+            blockStateMethod = EntityDamageByBlockEvent.class.getMethod("getDamagerBlockState");
+        } catch (NoSuchMethodException | NoClassDefFoundError ignored) {
+        }
+        this.damagerBlockStateMethod = blockStateMethod;
     }
     
     public String getKiller(Player player) {
@@ -48,8 +56,18 @@ public class PlayerDeathSyncEvents implements Listener {
             //noinspection ConstantValue
             return damager != null ? damager.getName() : "一股神秘的力量";
         } else if (lastDamageCause instanceof EntityDamageByBlockEvent) {
-            Block damager = ((EntityDamageByBlockEvent) lastDamageCause).getDamager();
-            return damager != null ? damager.getState().getType().name() : "一股神秘的力量";
+            EntityDamageByBlockEvent blockDamage = (EntityDamageByBlockEvent) lastDamageCause;
+            if (damagerBlockStateMethod == null) {
+                return "一股神秘的力量";
+            }
+            try {
+                Object damagerBlockState = damagerBlockStateMethod.invoke(blockDamage);
+                if (damagerBlockState != null) {
+                    return ((BlockState) damagerBlockState).getType().name();
+                }
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+            }
+            return "一股神秘的力量";
         } else {
             return "一股神秘的力量";
         }
